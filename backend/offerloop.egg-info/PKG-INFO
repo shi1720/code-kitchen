@@ -1,0 +1,17 @@
+Metadata-Version: 2.4
+Name: offerloop
+Version: 1.0.0
+Summary: OfferLoop — a sales CRM for your job search. Built on Google Cloud.
+Requires-Python: >=3.11
+Requires-Dist: fastapi>=0.115
+Requires-Dist: uvicorn[standard]>=0.30
+Requires-Dist: pydantic>=2.7
+Requires-Dist: pydantic-settings>=2.3
+Requires-Dist: python-multipart>=0.0.9
+Requires-Dist: google-genai>=1.16
+Requires-Dist: google-cloud-firestore>=2.16
+Requires-Dist: firebase-admin>=6.5
+Provides-Extra: dev
+Requires-Dist: pytest>=8.2; extra == "dev"
+Requires-Dist: httpx>=0.27; extra == "dev"
+Requires-Dist: ruff>=0.5; extra == "dev"
