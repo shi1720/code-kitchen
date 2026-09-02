@@ -112,6 +112,10 @@ ol -X POST localhost:8000/api/import \
 Or in the UI: **Import → Load sample datasets → Run import.** Bring your own files in the same
 schemas — the sample CSVs are the schema documentation.
 
+> The demo seed already occupies posting ids 1–12 and draft ids 1–16. Importing your own file
+> that reuses those ids will *update* the seeded rows — that's the idempotent upsert-by-id
+> semantics working as designed. Use fresh ids to see clean creates.
+
 What the pipeline handles (each item has a dedicated test):
 
 - The problem statement's own example rows, **including the unquoted comma** in
