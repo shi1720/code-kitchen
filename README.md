@@ -87,7 +87,7 @@ flowchart LR
 - **Model routing with a fallback chain.** High-volume structured work (posting extraction,
   follow-ups) goes to `gemini-3.7-flash`; the highest-stakes artifact — the cover letter — goes to
   `gemini-3.1-pro-preview`. Every call degrades along
-  `3.1 Pro → 2.5 Pro → 3.7 Flash` instead of failing, and extraction falls back to regex so a
+  `3.1 Pro → 3.6 Flash → 3.5 Flash-Lite` instead of failing, and extraction falls back to regex so a
   model outage can never break an import.
 - **Idempotency as structure, not discipline.** Nudges are keyed by deterministic dedupe keys and
   the store refuses duplicates; CSV rows carry their external id so re-imports update in place.

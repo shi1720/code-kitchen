@@ -40,9 +40,14 @@ class Settings(BaseSettings):
     vertex_location: str = "global"
     model_flash: str = "gemini-3.7-flash"
     model_pro: str = "gemini-3.1-pro-preview"
-    model_fallbacks: str = "gemini-2.5-pro,gemini-3.7-flash,gemini-2.5-flash"
+    # Fallbacks verified live against the Gemini API: the 2.5 family is
+    # retired for new projects; 3.6-flash is Google's recommended successor.
+    model_fallbacks: str = "gemini-3.6-flash,gemini-3.5-flash-lite"
     model_embed: str = "gemini-embedding-001"
     embed_dim: int = 768
+    # A model that HANGS (observed on free-tier keys for flagship models)
+    # would defeat the fallback chain without a hard per-call timeout.
+    gemini_timeout_ms: int = 45000
 
     # --- Firebase Auth ----------------------------------------------------
     # JSON web config passed straight to the frontend via /api/config.

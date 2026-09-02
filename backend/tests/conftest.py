@@ -12,7 +12,9 @@ from app.services.llm import TemplateIntelligence
 
 @pytest.fixture
 def settings() -> Settings:
-    return Settings(app_mode="demo", demo_seed=False)
+    # _env_file=None keeps tests hermetic: a developer's backend/.env (e.g.
+    # a real Gemini key) must never turn the suite into live API calls.
+    return Settings(app_mode="demo", demo_seed=False, _env_file=None)
 
 
 @pytest.fixture

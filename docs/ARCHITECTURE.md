@@ -16,7 +16,7 @@ routers ──► services ──► adapters
 
 Selected by `OFFERLOOP_APP_MODE`. Consequences:
 
-- **CI needs no secrets.** All 60 backend tests exercise the real pipeline logic against the
+- **CI needs no secrets.** All 70 backend tests exercise the real pipeline logic against the
   memory adapter and the deterministic writer.
 - **Judges can run the product in one command** with no GCP project.
 - **The demo is honest.** Demo mode boots by pushing `data/sample_*.csv` through the same
@@ -71,7 +71,7 @@ carries `grounded_on` ids — provenance the UI surfaces as chips.
 
 Model routing: `gemini-3.7-flash` for extraction/follow-ups (volume, latency, cost),
 `gemini-3.1-pro-preview` for cover letters (quality), falling back
-`3.1 Pro → 2.5 Pro → 3.7 Flash`; extraction ultimately falls back to regex. An LLM outage
+`3.1 Pro → 3.6 Flash → 3.5 Flash-Lite`; extraction ultimately falls back to regex. An LLM outage
 degrades quality, never availability.
 
 ## Frontend

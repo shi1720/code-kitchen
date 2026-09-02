@@ -58,7 +58,8 @@ gcloud logging read 'resource.labels.service_name="offerloop"' --limit 20
 ```
 
 Sign in with Google, log an application, import the sample CSVs, and generate a cover letter —
-it will come back with `"model": "gemini-3.1-pro-preview"`.
+the response's `model` field tells you which model served it (`gemini-3.1-pro-preview`, or a
+fallback from the chain if preview access is limited on your project).
 
 ## Alternative: Gemini API key instead of Vertex
 

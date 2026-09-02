@@ -233,13 +233,21 @@ class GeminiIntelligence:
         fallbacks: list[str] | None = None,
         model_embed: str = "gemini-embedding-001",
         embed_dim: int = 768,
+        timeout_ms: int = 45000,
     ) -> None:
         from google import genai  # deferred so demo mode has zero GCP imports
+        from google.genai import types
 
+        # The hard timeout is load-bearing: a model that hangs (observed in
+        # the wild on flagship models for free-tier keys) must fail fast so
+        # the fallback chain can do its job.
+        http_options = types.HttpOptions(timeout=timeout_ms)
         if use_vertex:
-            self._client = genai.Client(vertexai=True, project=project, location=location)
+            self._client = genai.Client(
+                vertexai=True, project=project, location=location, http_options=http_options
+            )
         else:
-            self._client = genai.Client(api_key=api_key)
+            self._client = genai.Client(api_key=api_key, http_options=http_options)
         self._flash_chain = [model_flash] + [m for m in (fallbacks or []) if "flash" in m and m != model_flash]
         self._pro_chain = [model_pro] + [m for m in (fallbacks or []) if m != model_pro]
         self._model_embed = model_embed
@@ -389,6 +397,7 @@ def build_intelligence(settings) -> Intelligence:
             fallbacks=[m.strip() for m in settings.model_fallbacks.split(",") if m.strip()],
             model_embed=settings.model_embed,
             embed_dim=settings.embed_dim,
+            timeout_ms=settings.gemini_timeout_ms,
         )
     log.info("Gemini credentials absent — using deterministic template writer")
     return TemplateIntelligence()

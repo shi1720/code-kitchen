@@ -54,7 +54,7 @@ ol -X POST localhost:8000/api/applications/$APP_ID/drafts \
 Note the `grounded_on` field in the response: the ids of the user's own past drafts that were
 retrieved (hybrid `gemini-embedding-001` cosine + lexical scoring, sent-drafts boosted) and handed
 to Gemini as voice exemplars. Model routing: cover letters → `gemini-3.1-pro-preview`, follow-ups
-and extraction → `gemini-3.7-flash`, with a `3.1 Pro → 2.5 Pro → 3.7 Flash` fallback chain.
+and extraction → `gemini-3.7-flash`, with a `3.1 Pro → 3.6 Flash → 3.5 Flash-Lite` fallback chain.
 
 ## 3. "Persistent state transitions across Applied, Interview, Offer, Reject"
 

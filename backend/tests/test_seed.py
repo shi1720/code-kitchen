@@ -11,7 +11,7 @@ from app.main import create_app
 
 @pytest.fixture
 def seeded_client():
-    app = create_app(Settings(app_mode="demo", demo_seed=True))
+    app = create_app(Settings(app_mode="demo", demo_seed=True, _env_file=None))
     with TestClient(app) as client:
         client.headers["Authorization"] = "Bearer demo"
         yield client
