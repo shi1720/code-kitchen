@@ -197,6 +197,13 @@ function ReportPanel({ report }: { report: ImportReport }) {
         />
       </div>
 
+      {report.relinked_drafts > 0 && (
+        <p className="mt-3 flex items-center gap-1.5 text-xs text-ink-2">
+          <Link2 size={12} className="text-offer" />
+          {report.relinked_drafts} previously orphaned draft{report.relinked_drafts > 1 ? "s" : ""} adopted by
+          newly imported postings.
+        </p>
+      )}
       {report.embedded > 0 && (
         <p className="mt-3 flex items-center gap-1.5 text-xs text-ink-2">
           <Sparkles size={12} className="text-accent" />

@@ -59,8 +59,8 @@ export default function LoginPage() {
           </h1>
 
           <p className="mt-5 max-w-md text-[15px] leading-relaxed text-ink-2">
-            75% of job applications disappear into silence. OfferLoop runs your search like a sales
-            pipeline — tracked stages, AI-drafted outreach, and perfectly timed follow-ups.
+            Three out of four candidates get ghosted after an interview. OfferLoop runs your search
+            like a sales pipeline — tracked stages, AI-drafted outreach, perfectly timed follow-ups.
           </p>
 
           <ul className="mt-8 space-y-3">

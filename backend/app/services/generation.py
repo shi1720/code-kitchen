@@ -21,7 +21,6 @@ def generate_draft(
     kind: DraftType,
     instructions: str = "",
     touch: int = 1,
-    touch_activity: bool = True,
 ) -> Draft:
     profile = repo.get_profile(app.uid) or Profile(uid=app.uid)
     history = repo.list_drafts(app.uid)
@@ -69,9 +68,7 @@ def generate_draft(
     )
     repo.put_draft(draft)
 
-    if touch_activity:
-        # User-initiated generation counts as working the application; a
-        # scheduled scan's auto-draft must NOT reset the staleness clock.
-        app.touch()
-        repo.put_application(app)
+    # Deliberately NOT touching the application's staleness clock here:
+    # writing a draft is preparation, not outreach. Only marking a draft
+    # "sent" (drafts router) resets the clock that drives the cadence.
     return draft

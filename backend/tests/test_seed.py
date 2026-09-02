@@ -13,6 +13,7 @@ from app.main import create_app
 def seeded_client():
     app = create_app(Settings(app_mode="demo", demo_seed=True))
     with TestClient(app) as client:
+        client.headers["Authorization"] = "Bearer demo"
         yield client
 
 

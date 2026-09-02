@@ -95,7 +95,6 @@ def scan_user(
                                 app,
                                 DraftType.FOLLOW_UP_EMAIL,
                                 touch=next_touch,
-                                touch_activity=False,
                             )
                             nudge.draft_id = draft.id
                             repo.update_nudge(nudge)

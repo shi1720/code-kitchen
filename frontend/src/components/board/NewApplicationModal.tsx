@@ -14,10 +14,15 @@ export function NewApplicationModal({ onClose }: { onClose: () => void }) {
     location: "",
     job_type: "full-time",
     description: "",
+    applied_at: new Date().toISOString().slice(0, 10),
   });
 
   const create = useMutation({
-    mutationFn: () => api.applications.create(form),
+    mutationFn: () =>
+      api.applications.create({
+        ...form,
+        applied_at: new Date(`${form.applied_at}T00:00:00Z`).toISOString(),
+      }),
     onSuccess: () => {
       toast("Application logged — the cadence clock is ticking");
       void queryClient.invalidateQueries({ queryKey: ["applications"] });
@@ -56,14 +61,19 @@ export function NewApplicationModal({ onClose }: { onClose: () => void }) {
             <input className={inputClass} placeholder="Bengaluru" value={form.location} onChange={set("location")} />
           </Field>
         </div>
-        <Field label="Type">
-          <select className={inputClass} value={form.job_type} onChange={set("job_type")}>
-            <option value="full-time">Full-time</option>
-            <option value="contract">Contract</option>
-            <option value="internship">Internship</option>
-            <option value="part-time">Part-time</option>
-          </select>
-        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Type">
+            <select className={inputClass} value={form.job_type} onChange={set("job_type")}>
+              <option value="full-time">Full-time</option>
+              <option value="contract">Contract</option>
+              <option value="internship">Internship</option>
+              <option value="part-time">Part-time</option>
+            </select>
+          </Field>
+          <Field label="Applied on">
+            <input type="date" className={inputClass} value={form.applied_at} onChange={set("applied_at")} />
+          </Field>
+        </div>
         <Field label="Posting description">
           <textarea
             className={`${inputClass} min-h-24 resize-y`}

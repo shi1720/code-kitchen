@@ -23,6 +23,9 @@ lint:               ## ruff + tsc
 	cd backend && .venv/bin/ruff check app tests
 	cd frontend && npx tsc --noEmit
 
+tour:               ## Playwright end-to-end tour (run `make api` first)
+	cd e2e && npm install && npx playwright install chromium && npm run tour
+
 build:              ## production frontend bundle
 	cd frontend && npm run build
 

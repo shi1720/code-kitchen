@@ -49,9 +49,9 @@ export function ApplicationCard({
           {initials(app.company || app.role)}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm leading-tight font-semibold text-ink">{app.role}</p>
+          <p className="line-clamp-2 text-sm leading-tight font-semibold text-ink">{app.role}</p>
           <p className="mt-0.5 truncate text-xs text-ink-2">
-            {app.company || "Company unknown"}
+            {app.company || <span className="italic">Confidential</span>}
             {app.location && <span className="text-ink-3"> · {app.location}</span>}
           </p>
         </div>
@@ -60,7 +60,11 @@ export function ApplicationCard({
       <div className="mt-3 flex items-center gap-3 text-[11px] text-ink-3">
         <span className={cn("inline-flex items-center gap-1", isOpenStage && TONE_STYLES[tone])}>
           {isOpenStage && tone === "hot" ? <Ghost size={11} /> : <Clock size={11} />}
-          {quiet === 0 ? "today" : `${quiet}d quiet`}
+          {isOpenStage
+            ? quiet === 0
+              ? "active today"
+              : `${quiet}d quiet`
+            : `updated ${quiet === 0 ? "today" : `${quiet}d ago`}`}
         </span>
         {draftCount > 0 && (
           <span className="inline-flex items-center gap-1">

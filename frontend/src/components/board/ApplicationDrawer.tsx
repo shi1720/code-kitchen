@@ -99,7 +99,7 @@ export function ApplicationDrawer({ applicationId, onClose }: { applicationId: s
         <div className="min-w-0">
           <h2 className="font-display text-xl leading-tight font-bold tracking-tight">{app.role}</h2>
           <p className="mt-1 text-sm text-ink-2">
-            {app.company || "Company unknown"}
+            {app.company || <span className="italic">Confidential</span>}
             {app.location && <span className="text-ink-3"> · {app.location}</span>}
           </p>
         </div>

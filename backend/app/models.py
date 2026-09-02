@@ -13,8 +13,9 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 from enum import StrEnum
+from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import AfterValidator, BaseModel, Field
 
 
 def new_id() -> str:
@@ -23,6 +24,15 @@ def new_id() -> str:
 
 def utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+def _ensure_utc(value: datetime) -> datetime:
+    """Coerce naive datetimes (e.g. a bare "2026-08-15" in an API payload)
+    to UTC so aware/naive comparisons can never 500 a request."""
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value
+
+
+UTCDateTime = Annotated[datetime, AfterValidator(_ensure_utc)]
 
 
 # ---------------------------------------------------------------------------
@@ -61,7 +71,7 @@ class NudgeStatus(StrEnum):
 class StatusChange(BaseModel):
     from_status: Status | None = None
     to_status: Status
-    at: datetime
+    at: UTCDateTime
     note: str = ""
 
 
@@ -75,16 +85,16 @@ class Application(BaseModel):
     job_type: str = ""  # full-time | contract | internship | ...
     description: str = ""  # raw posting text — the grounding source
     skills: list[str] = Field(default_factory=list)
-    posting_from: datetime | None = None
-    posting_to: datetime | None = None
-    applied_at: datetime = Field(default_factory=utcnow)
+    posting_from: UTCDateTime | None = None
+    posting_to: UTCDateTime | None = None
+    applied_at: UTCDateTime = Field(default_factory=utcnow)
     status: Status = Status.APPLIED
     status_history: list[StatusChange] = Field(default_factory=list)
-    last_activity_at: datetime = Field(default_factory=utcnow)
+    last_activity_at: UTCDateTime = Field(default_factory=utcnow)
     source: str = "manual"  # manual | import
     notes: str = ""
-    created_at: datetime = Field(default_factory=utcnow)
-    updated_at: datetime = Field(default_factory=utcnow)
+    created_at: UTCDateTime = Field(default_factory=utcnow)
+    updated_at: UTCDateTime = Field(default_factory=utcnow)
 
     def touch(self, at: datetime | None = None) -> None:
         now = at or utcnow()
@@ -97,6 +107,7 @@ class Draft(BaseModel):
     uid: str
     application_id: str
     external_id: str | None = None  # id column of an imported draft
+    external_job_id: str | None = None  # jobId column — kept so orphans can relink later
     type: DraftType
     subject: str = ""
     contents: str
@@ -105,8 +116,8 @@ class Draft(BaseModel):
     model: str = ""  # which Gemini model produced it, if generated
     grounded_on: list[str] = Field(default_factory=list)  # draft ids used as voice references
     embedding: list[float] | None = None
-    created_at: datetime = Field(default_factory=utcnow)
-    updated_at: datetime = Field(default_factory=utcnow)
+    created_at: UTCDateTime = Field(default_factory=utcnow)
+    updated_at: UTCDateTime = Field(default_factory=utcnow)
 
 
 class Nudge(BaseModel):
@@ -117,11 +128,11 @@ class Nudge(BaseModel):
     touch: int = 1  # 1st, 2nd, 3rd follow-up in the cadence
     headline: str
     detail: str = ""
-    due_at: datetime
+    due_at: UTCDateTime
     status: NudgeStatus = NudgeStatus.PENDING
     draft_id: str | None = None  # auto-drafted follow-up attached to the nudge
     dedupe_key: str = ""
-    created_at: datetime = Field(default_factory=utcnow)
+    created_at: UTCDateTime = Field(default_factory=utcnow)
 
 
 class Profile(BaseModel):
@@ -158,10 +169,11 @@ class ImportReport(BaseModel):
     postings: FileReport = Field(default_factory=FileReport)
     drafts: FileReport = Field(default_factory=FileReport)
     linked_drafts: int = 0
-    orphaned_drafts: int = 0  # drafts whose jobId matched no posting
+    orphaned_drafts: int = 0  # drafts whose jobId matched no posting (yet)
+    relinked_drafts: int = 0  # previously orphaned drafts adopted by newly imported postings
     embedded: int = 0
     duration_ms: int = 0
-    created_at: datetime = Field(default_factory=utcnow)
+    created_at: UTCDateTime = Field(default_factory=utcnow)
 
 
 # ---------------------------------------------------------------------------
@@ -175,7 +187,7 @@ class ApplicationCreate(BaseModel):
     location: str = ""
     job_type: str = ""
     description: str = ""
-    applied_at: datetime | None = None
+    applied_at: UTCDateTime | None = None
     status: Status = Status.APPLIED
     notes: str = ""
 

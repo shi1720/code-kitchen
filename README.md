@@ -8,7 +8,7 @@
 
 Built end-to-end on Google Cloud for **Code Kitchen Season 01** · Track: *AI Job Application Tracker*
 
-[![CI](https://img.shields.io/badge/tests-65%20passing-brightgreen)](.github/workflows/ci.yml)
+[![CI](https://github.com/shi1720/code-kitchen/actions/workflows/ci.yml/badge.svg)](https://github.com/shi1720/code-kitchen/actions/workflows/ci.yml)
 [![Gemini](https://img.shields.io/badge/Gemini-3.7%20Flash%20%2B%203.1%20Pro-4285F4)](backend/app/services/llm.py)
 [![Cloud Run](https://img.shields.io/badge/deploy-Cloud%20Run-blue)](infra/deploy.sh)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
@@ -21,9 +21,10 @@ Built end-to-end on Google Cloud for **Code Kitchen Season 01** · Track: *AI Jo
 
 ## The problem
 
-75% of job applications disappear into silence. Not because candidates aren't good — because they
-don't *work* their applications. They apply, they wait, they get ghosted, they lose track in a
-spreadsheet.
+Three out of four candidates report being ghosted after an interview ([Greenhouse candidate
+experience survey](https://www.greenhouse.com/blog/candidate-experience-report)) — and that's the
+applications that got a reply at all. Not because candidates aren't good, but because nobody
+*works* their applications. They apply, they wait, they lose track in a spreadsheet.
 
 Sales teams solved this exact problem decades ago: a pipeline with stages, automated cadences,
 and follow-ups that go out on schedule, every time. **OfferLoop gives job seekers that same
@@ -116,6 +117,10 @@ historical drafts, and a live nudge inbox. Then go to **Import** and hit **Load 
 Run import** to watch the evaluation pipeline run end to end — and hit it again to see
 idempotency in action.
 
+> Demo mode keeps everything in memory (restart = fresh seed) and uses a deterministic writer,
+> so it needs zero credentials. Live mode is the same code on Firestore + Gemini, flipped by
+> one env var.
+
 ## Deploying to Google Cloud
 
 ```bash
@@ -135,16 +140,19 @@ datasets through the pipeline.
 ## Testing
 
 ```bash
-make test    # 60 backend tests (pytest) + 5 frontend tests (vitest)
+make test    # 70 backend tests (pytest) + 5 frontend tests (vitest)
 make lint    # ruff + tsc --noEmit
+make tour    # Playwright end-to-end tour of the full UI (needs `make api` running)
 ```
 
 The importer is tested against the messy realities of the evaluation schema: unquoted commas
 inside descriptions (as in the problem statement's own examples), `<id>`-style angle-bracket
-headers, UTF-8 BOM, CRLF, multiline quoted contents, mixed date formats, unknown type labels,
-per-row failures, and idempotent re-imports. The nudge engine is tested for cadence backoff,
-dedupe idempotency, budget caps, and the staleness-clock semantics. A Playwright tour drives the
-full UI against the running stack.
+headers, UTF-8 BOM, CRLF, multiline quoted contents, mixed date formats, messy type labels
+(`follow-up`, `Thank You`, `fulltime`), duplicate ids within one file, per-row failures,
+idempotent re-imports, and orphan adoption when a posting arrives after its drafts. The nudge
+engine is tested for cadence backoff, dedupe idempotency, budget caps, and the staleness-clock
+semantics. The Playwright tour in [`e2e/`](e2e/) click-tests every page against the running
+stack and regenerates the screenshots above.
 
 ## Project structure
 
@@ -167,6 +175,7 @@ backend/
   tests/               60 tests
 frontend/
   src/                 React 19 + TypeScript + Tailwind 4 (validated dataviz palette)
+e2e/                   Playwright tour: click-tests every page, regenerates screenshots
 data/                  sample datasets in the evaluation schema
 infra/                 deploy.sh · Cloud Scheduler wiring · Firestore rules · env reference
 docs/                  architecture · deployment · evaluation guide · screenshots
@@ -174,18 +183,23 @@ docs/                  architecture · deployment · evaluation guide · screens
 
 ## Commercial viability
 
-OfferLoop is an MVP with a real market: job-search CRMs like Teal and Huntr have paying users,
-and the "cadence" mechanic — borrowed from sales tools like Outreach — is the wedge none of the
-spreadsheet-replacement tools have. The infrastructure choice is the business model's friend:
-scale-to-zero Cloud Run + Firestore free tier + Flash-first model routing puts the marginal cost
-of a free user near zero, with obvious premium tiers (deeper cadences, interview prep, recruiter
-analytics).
+Job-search CRMs like Teal and Huntr already have paying users in the US; the "cadence" mechanic —
+borrowed from sales tools like Outreach — is the wedge none of the spreadsheet-replacement tools
+have. India makes the problem *worse* and the opportunity bigger: mass-apply culture on Naukri
+and LinkedIn means more pipelines, more silence, more ghosting. The roadmap follows the market:
+one-click import from Naukri/LinkedIn, nudges delivered on WhatsApp, a ₹99/month premium tier —
+and, because Indian B2C rarely pays alone, **placement-cell and bootcamp licensing as the B2B2C
+channel** (a college buys OfferLoop for 2,000 final-year students and gets the recruiter-facing
+funnel analytics).
+
+The infrastructure is the business model's friend: scale-to-zero Cloud Run + Firestore free tier
++ Flash-first model routing puts the marginal cost of a free user near zero.
 
 ## Credits
 
 Built by **[Shivam Gupta](https://github.com/shi1720)** for Code Kitchen Season 01, with Claude
 (Anthropic) as pair programmer. Product concept, architecture direction, testing and iteration:
-Shivam. The commit history tells the story.
+Shivam.
 
 ## License
 

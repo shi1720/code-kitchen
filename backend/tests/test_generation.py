@@ -45,12 +45,14 @@ class TestGrounding:
         assert "Data Platform Engineer" in draft.subject or "Data Platform Engineer" in draft.contents
         assert "Shivam Gupta" in draft.contents
 
-    def test_user_generation_counts_as_activity(self, repo, intelligence):
+    def test_generation_never_resets_staleness_clock(self, repo, intelligence):
+        # Writing a draft is preparation, not outreach — only marking it
+        # sent counts as activity (see drafts router).
         app = make_application()
         repo.put_application(app)
         before = repo.get_application("u1", app.id).last_activity_at
         generate_draft(repo, intelligence, app, DraftType.COVER_LETTER)
-        assert repo.get_application("u1", app.id).last_activity_at > before
+        assert repo.get_application("u1", app.id).last_activity_at == before
 
 
 class TestDraftApi:

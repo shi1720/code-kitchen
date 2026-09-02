@@ -19,6 +19,7 @@ def settings() -> Settings:
 def client(settings) -> TestClient:
     app = create_app(settings)
     with TestClient(app) as test_client:
+        test_client.headers["Authorization"] = "Bearer demo"
         test_client.app_state = app.state  # convenient repo access in tests
         yield test_client
 

@@ -91,6 +91,7 @@ export interface ImportReport {
   drafts: FileReport;
   linked_drafts: number;
   orphaned_drafts: number;
+  relinked_drafts: number;
   embedded: number;
   duration_ms: number;
   created_at: string;

@@ -13,18 +13,24 @@ Design goals, in order:
    individually with a row number and reason — one broken line never
    fails the file.
 2. **Idempotent.** Rows carry their CSV id as ``external_id``; re-importing
-   the same file updates in place instead of duplicating.
-3. **Efficient.** Posting descriptions are structured by Gemini Flash in
-   batched calls (with a regex fallback), embeddings are computed in
-   batches, and writes go to Firestore in batched commits.
-4. **Integrated.** Drafts are linked to their posting via ``jobId``;
-   orphans are kept but flagged; every run produces an auditable report.
+   the same file — or a duplicated id *within* one file — resolves to an
+   update, never a duplicate.
+3. **Efficient.** Existing rows are indexed once per run (one repo read),
+   so lookups are O(1) instead of a query per row; posting descriptions
+   are structured by Gemini Flash in batched calls (with a regex
+   fallback); embeddings are computed in batches; writes go to Firestore
+   in batched commits.
+4. **Integrated.** Drafts link to their posting via ``jobId``; orphans are
+   kept with their ``jobId`` preserved and are adopted automatically when
+   the missing posting arrives later; every run produces an auditable
+   report.
 """
 
 from __future__ import annotations
 
 import csv
 import io
+import re
 import time
 from datetime import UTC, datetime
 
@@ -45,21 +51,33 @@ from .llm import Intelligence
 
 MAX_ROWS = 5000
 
-_DATE_FORMATS = ["%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d", "%d %b %Y", "%b %d %Y", "%d.%m.%Y"]
+_DATE_FORMATS = [
+    "%Y-%m-%d",
+    "%d-%m-%Y",
+    "%d/%m/%Y",
+    "%Y/%m/%d",
+    "%d %b %Y",
+    "%b %d %Y",
+    "%d %B %Y",
+    "%B %d %Y",
+    "%d.%m.%Y",
+]
 
-_TYPE_ALIASES = {
-    "cover_letter": DraftType.COVER_LETTER,
+
+def _squash(label: str) -> str:
+    """Normalize a type label: case, spaces, hyphens, underscores."""
+    return re.sub(r"[\s_\-]+", "", (label or "").strip().lower())
+
+
+# Keys are squashed, so "follow-up", "Follow Up", and "follow_up" all match.
+_DRAFT_TYPE_ALIASES = {
     "coverletter": DraftType.COVER_LETTER,
-    "cover letter": DraftType.COVER_LETTER,
-    "cover-letter": DraftType.COVER_LETTER,
     "letter": DraftType.COVER_LETTER,
-    "follow_up_email": DraftType.FOLLOW_UP_EMAIL,
-    "followup_email": DraftType.FOLLOW_UP_EMAIL,
-    "follow-up email": DraftType.FOLLOW_UP_EMAIL,
-    "follow up email": DraftType.FOLLOW_UP_EMAIL,
-    "follow_up": DraftType.FOLLOW_UP_EMAIL,
+    "followupemail": DraftType.FOLLOW_UP_EMAIL,
     "followup": DraftType.FOLLOW_UP_EMAIL,
     "email": DraftType.FOLLOW_UP_EMAIL,
+    "thankyou": DraftType.FOLLOW_UP_EMAIL,
+    "thankyouemail": DraftType.FOLLOW_UP_EMAIL,
 }
 
 _STATUS_ALIASES = {
@@ -69,6 +87,23 @@ _STATUS_ALIASES = {
     "sent": DraftStatus.SENT,
     "delivered": DraftStatus.SENT,
 }
+
+# Posting employment types collapse to a canonical vocabulary so analytics
+# and filters never fragment across "full-time"/"full time"/"fulltime".
+_JOB_TYPE_ALIASES = {
+    "fulltime": "full-time",
+    "parttime": "part-time",
+    "contract": "contract",
+    "contractor": "contract",
+    "freelance": "contract",
+    "internship": "internship",
+    "intern": "internship",
+}
+
+
+def _normalize_job_type(raw: str) -> str:
+    squashed = _squash(raw)
+    return _JOB_TYPE_ALIASES.get(squashed, raw.strip().lower())
 
 
 def _normalize_header(name: str) -> str:
@@ -127,7 +162,7 @@ def _read_rows(data: bytes, spill_column: str) -> tuple[list[dict[str, str]], st
 
 
 def _parse_date(value: str) -> datetime | None:
-    value = value.strip()
+    value = re.sub(r"\s+", " ", value.replace(",", " ")).strip()
     for fmt in _DATE_FORMATS:
         try:
             return datetime.strptime(value, fmt).replace(tzinfo=UTC)
@@ -144,7 +179,13 @@ def _parse_date(value: str) -> datetime | None:
 # ---------------------------------------------------------------------------
 
 
-def ingest_postings(repo: Repo, intelligence: Intelligence, uid: str, data: bytes, filename: str = "") -> FileReport:
+def ingest_postings(
+    repo: Repo,
+    intelligence: Intelligence,
+    uid: str,
+    data: bytes,
+    filename: str = "",
+) -> FileReport:
     report = FileReport(filename=filename)
     rows, fatal = _read_rows(data, "description")
     if fatal:
@@ -175,7 +216,7 @@ def ingest_postings(repo: Repo, intelligence: Intelligence, uid: str, data: byte
                 "external_id": ext_id,
                 "from": date_from,
                 "to": date_to,
-                "job_type": row.get("type", "").lower(),
+                "job_type": _normalize_job_type(row.get("type", "")),
                 "description": description,
             }
         )
@@ -184,9 +225,14 @@ def ingest_postings(repo: Repo, intelligence: Intelligence, uid: str, data: byte
     # structured fields; regex fallback guarantees the import never fails.
     extracted = intelligence.extract_postings([v["description"] for v in valid])
 
-    to_write: list[Application] = []
+    # One repo read builds the index; every row after that is O(1) — a
+    # duplicated id inside the same file resolves to an update, not a twin.
+    by_external: dict[str, Application] = {
+        a.external_id: a for a in repo.list_applications(uid) if a.external_id
+    }
+    staged: dict[str, Application] = {}
     for item, fields in zip(valid, extracted, strict=True):
-        existing = repo.get_application_by_external_id(uid, item["external_id"])
+        existing = by_external.get(item["external_id"])
         applied_at = item["from"] or utcnow()
         if existing:
             existing.role = fields["role"] or existing.role
@@ -198,7 +244,7 @@ def ingest_postings(repo: Repo, intelligence: Intelligence, uid: str, data: byte
             existing.posting_from = item["from"]
             existing.posting_to = item["to"]
             existing.updated_at = utcnow()
-            to_write.append(existing)
+            staged[existing.id] = existing
             report.updated += 1
         else:
             app = Application(
@@ -218,10 +264,11 @@ def ingest_postings(repo: Repo, intelligence: Intelligence, uid: str, data: byte
                 status_history=[StatusChange(to_status=Status.APPLIED, at=applied_at, note="imported")],
                 source="import",
             )
-            to_write.append(app)
+            by_external[app.external_id] = app
+            staged[app.id] = app
             report.accepted += 1
 
-    repo.bulk_put_applications(to_write)
+    repo.bulk_put_applications(staged.values())
     return report
 
 
@@ -241,8 +288,15 @@ def ingest_drafts(
         return report, 0, 0, 0
     report.total_rows = len(rows)
 
+    apps_by_external: dict[str, Application] = {
+        a.external_id: a for a in repo.list_applications(uid) if a.external_id
+    }
+    drafts_by_external: dict[str, Draft] = {
+        d.external_id: d for d in repo.list_drafts(uid) if d.external_id
+    }
+
     linked = orphaned = 0
-    to_write: list[Draft] = []
+    staged: dict[str, Draft] = {}
     for line, row in enumerate(rows, start=2):
         ext_id = row.get("id", "")
         contents = row.get("contents", "")
@@ -252,30 +306,33 @@ def ingest_drafts(
         if not contents:
             report.rejected.append(RowError(row=line, reason="missing contents"))
             continue
-        dtype = _TYPE_ALIASES.get(row.get("type", "").lower().strip())
+        dtype = _DRAFT_TYPE_ALIASES.get(_squash(row.get("type", "")))
         if dtype is None:
             report.rejected.append(RowError(row=line, reason=f"unknown draft type: {row.get('type')!r}"))
             continue
-        dstatus = _STATUS_ALIASES.get(row.get("status", "draft").lower().strip())
+        dstatus = _STATUS_ALIASES.get(_squash(row.get("status", "draft")))
         if dstatus is None:
             report.rejected.append(RowError(row=line, reason=f"unknown status: {row.get('status')!r}"))
             continue
 
         job_ref = row.get("jobid", "")
-        parent = repo.get_application_by_external_id(uid, job_ref) if job_ref else None
+        parent = apps_by_external.get(job_ref) if job_ref else None
         if parent:
             linked += 1
         else:
             orphaned += 1
 
-        existing = repo.get_draft_by_external_id(uid, ext_id)
+        existing = drafts_by_external.get(ext_id)
         if existing:
+            if existing.contents != contents:
+                existing.embedding = None  # stale once the text changes
             existing.contents = contents
             existing.type = dtype
             existing.status = dstatus
+            existing.external_job_id = job_ref or existing.external_job_id
             existing.application_id = parent.id if parent else existing.application_id
             existing.updated_at = utcnow()
-            to_write.append(existing)
+            staged[existing.id] = existing
             report.updated += 1
         else:
             # The drafts schema carries no dates, so place historical drafts
@@ -283,33 +340,56 @@ def ingest_drafts(
             # activity analytics honest and, crucially, never resets the
             # staleness clock that drives the follow-up cadence.
             written_at = parent.applied_at if parent else utcnow()
-            to_write.append(
-                Draft(
-                    uid=uid,
-                    application_id=parent.id if parent else "",
-                    external_id=ext_id,
-                    type=dtype,
-                    contents=contents,
-                    status=dstatus,
-                    source="imported",
-                    created_at=written_at,
-                    updated_at=written_at,
-                )
+            draft = Draft(
+                uid=uid,
+                application_id=parent.id if parent else "",
+                external_id=ext_id,
+                external_job_id=job_ref or None,
+                type=dtype,
+                contents=contents,
+                status=dstatus,
+                source="imported",
+                created_at=written_at,
+                updated_at=written_at,
             )
+            drafts_by_external[ext_id] = draft
+            staged[draft.id] = draft
             report.accepted += 1
 
     # Batch-embed everything that has no vector yet so retrieval can use
     # semantic similarity in live mode. Lexical scoring covers the rest.
     embedded = 0
-    pending = [d for d in to_write if d.embedding is None]
+    pending = [d for d in staged.values() if d.embedding is None]
     vectors = intelligence.embed([d.contents for d in pending]) if pending else None
     if vectors:
         for draft, vector in zip(pending, vectors, strict=True):
             draft.embedding = vector
         embedded = len(pending)
 
-    repo.bulk_put_drafts(to_write)
+    repo.bulk_put_drafts(staged.values())
     return report, linked, orphaned, embedded
+
+
+# ---------------------------------------------------------------------------
+# Orphan adoption — drafts whose posting arrived in a later import
+# ---------------------------------------------------------------------------
+
+
+def relink_orphans(repo: Repo, uid: str) -> int:
+    """Attach previously orphaned drafts to postings that now exist."""
+    apps_by_external = {a.external_id: a for a in repo.list_applications(uid) if a.external_id}
+    adopted: list[Draft] = []
+    for draft in repo.list_drafts(uid):
+        if draft.application_id or not draft.external_job_id:
+            continue
+        parent = apps_by_external.get(draft.external_job_id)
+        if parent:
+            draft.application_id = parent.id
+            draft.updated_at = utcnow()
+            adopted.append(draft)
+    if adopted:
+        repo.bulk_put_drafts(adopted)
+    return len(adopted)
 
 
 # ---------------------------------------------------------------------------
@@ -334,6 +414,10 @@ def run_import(
         report.linked_drafts = linked
         report.orphaned_drafts = orphaned
         report.embedded = embedded
+    if postings:
+        # Any drafts that were waiting for these postings — from this run or
+        # any earlier one — get adopted now.
+        report.relinked_drafts = relink_orphans(repo, uid)
     report.duration_ms = int((time.monotonic() - started) * 1000)
     repo.put_import_report(report)
     return report

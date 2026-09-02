@@ -103,10 +103,12 @@ class FirestoreRepo:
                 .where(filter=self._filter("application_id", "==", app_id))
                 .stream()
             )
-            batch = self._db.batch()
-            for snap in drafts:
-                batch.delete(snap.reference)
-            batch.commit()
+            refs = [snap.reference for snap in drafts]
+            for start in range(0, len(refs), _BATCH_LIMIT):
+                batch = self._db.batch()
+                for ref in refs[start : start + _BATCH_LIMIT]:
+                    batch.delete(ref)
+                batch.commit()
         return existed
 
     # -- drafts ------------------------------------------------------------

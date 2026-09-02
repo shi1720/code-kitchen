@@ -17,3 +17,4 @@ frontend/dist/
 # sandbox-only proxy CA (never committed)
 .sandbox-ca.crt
 Dockerfile.sandbox
+e2e/node_modules/

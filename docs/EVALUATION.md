@@ -8,9 +8,14 @@ check below works on your machine in minutes. In live mode the same code paths r
 Firebase Auth, Vertex AI Gemini, and Cloud Scheduler.
 
 All `curl` examples assume demo mode on `http://localhost:8000` with the demo bearer token.
+Demo mode still authenticates — a missing or wrong token is a 401, exercising the same rejection
+path a bad Firebase token takes in live mode:
 
 ```bash
-alias ol='curl -s -H "Authorization: Bearer demo"'
+AUTH='Authorization: Bearer demo'
+curl -s localhost:8000/api/applications                 # → 401
+curl -s -H "$AUTH" localhost:8000/api/applications      # → 200
+ol() { curl -s -H "$AUTH" "$@"; }                       # helper used below
 ```
 
 ---
@@ -116,14 +121,21 @@ What the pipeline handles (each item has a dedicated test):
   delimiters, quoted multiline `contents` with escaped quotes
 - Multiple date formats; per-row rejection with row numbers and reasons — one bad row never
   fails a file
-- **Linking**: drafts attach to postings by `jobId`; orphans are kept and flagged, not dropped
-- **Idempotency**: rows carry their CSV id as `external_id`; re-importing updates in place
-- **Efficiency**: Gemini Flash structures descriptions in batched calls (~40 rows/call) with a
+- **Linking**: drafts attach to postings by `jobId`; orphans are kept *with their jobId
+  preserved* and are adopted automatically when the missing posting arrives in a later import
+- **Idempotency**: rows carry their CSV id as `external_id`; re-importing — or a duplicated id
+  within one file — updates in place, never duplicates
+- **Efficiency**: existing rows are indexed once per run (one read, O(1) lookups per row — no
+  per-row queries); Gemini Flash structures descriptions in batched calls (~40 rows/call) with a
   regex fallback; embeddings are batched; Firestore writes are batched (450/commit). The report
   returns `duration_ms` measured end to end.
 - **Historical learning**: imported drafts become retrieval exemplars, so newly generated letters
-  match the user's demonstrated voice (§2). Imported history never resets the staleness clock
-  that drives nudges — history is history.
+  match the user's demonstrated voice (§2). Re-imported drafts whose text changed drop their
+  stale embedding for recomputation. Imported history never resets the staleness clock that
+  drives nudges — history is history.
+- **Date semantics**: an imported posting is treated as an application submitted on its `from`
+  date — that date anchors both the follow-up cadence and any "applied N days ago" phrasing in
+  generated drafts.
 
 ## 6. "Track development over time"
 
@@ -134,6 +146,10 @@ action rate, and 8 weeks of momentum. Tests: `tests/test_analytics.py`.
 ## 7. Robustness & scale posture
 
 - Upload caps (5 MB, 5,000 rows), per-scan generation budget, request-scoped auth
+- Naive datetimes in payloads coerced to UTC at the model boundary (can never 500 a request)
+- The scheduler endpoint fails **closed** in live mode: OIDC signature, audience (= service
+  URL), verified email, and expected service account are all enforced
 - Firestore batched writes; per-user namespacing keyed by verified uid
 - Model fallback chain + regex extraction fallback: no single Gemini failure breaks a flow
-- 60 backend tests + 5 frontend tests + a Playwright end-to-end tour, all credential-free in CI
+- 70 backend tests + 5 frontend tests run credential-free in CI; the Playwright tour in
+  [`e2e/`](../e2e/) click-tests the full UI locally (`make tour`)

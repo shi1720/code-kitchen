@@ -58,6 +58,10 @@ def get_current_user(request: Request, settings: Settings = Depends(get_settings
     token = header.removeprefix("Bearer ").strip()
 
     if settings.app_mode == "demo":
+        # Even the demo workspace authenticates: the fixed token exercises
+        # the same 401 path a bad Firebase token takes in live mode.
+        if token != "demo":
+            raise HTTPException(status_code=401, detail="Demo mode expects `Authorization: Bearer demo`")
         return User(uid=DEMO_UID, email="demo@offerloop.dev", name="Shivam Gupta")
 
     if not token:
@@ -70,9 +74,19 @@ def get_current_user(request: Request, settings: Settings = Depends(get_settings
 
 
 def verify_scheduler(request: Request, settings: Settings = Depends(get_settings)) -> None:
-    """Gate for Cloud Scheduler / Cloud Tasks invocations."""
+    """Gate for Cloud Scheduler / Cloud Tasks invocations.
+
+    Fails CLOSED: in live mode the endpoint refuses to run unless both the
+    expected caller identity and the OIDC audience are configured, the
+    token's signature checks out for that audience, and the verified email
+    matches the scheduler service account.
+    """
     if settings.app_mode == "demo":
         return
+
+    if not settings.scheduler_service_account or not settings.public_url:
+        log.error("scheduler auth unconfigured (scheduler_service_account/public_url) — refusing scan")
+        raise HTTPException(status_code=403, detail="Scheduler authentication not configured")
 
     header = request.headers.get("Authorization", "")
     token = header.removeprefix("Bearer ").strip()
@@ -82,9 +96,12 @@ def verify_scheduler(request: Request, settings: Settings = Depends(get_settings
         from google.auth.transport import requests as google_requests
         from google.oauth2 import id_token
 
-        claims = id_token.verify_oauth2_token(token, google_requests.Request())
-        expected = settings.scheduler_service_account
-        if expected and claims.get("email") != expected:
+        claims = id_token.verify_oauth2_token(
+            token, google_requests.Request(), audience=settings.public_url
+        )
+        if not claims.get("email_verified"):
+            raise ValueError("caller email not verified")
+        if claims.get("email") != settings.scheduler_service_account:
             raise ValueError(f"unexpected caller: {claims.get('email')}")
     except Exception as exc:  # noqa: BLE001
         log.warning("scheduler auth rejected: %s", exc)

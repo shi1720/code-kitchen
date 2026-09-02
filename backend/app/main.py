@@ -9,6 +9,7 @@ at 3 a.m. — and back up the moment Cloud Scheduler fires the nudge scan.
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -47,6 +48,14 @@ def _static_dir(settings: Settings) -> Path | None:
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
+
+    if settings.app_mode == "demo" and os.environ.get("K_SERVICE"):
+        # Running on Cloud Run but not in live mode — almost certainly a
+        # deployment configuration mistake. Shout about it.
+        log.error(
+            "DEMO MODE ON CLOUD RUN: storage is in-memory and auth is the shared demo "
+            "identity. Set OFFERLOOP_APP_MODE=live (see infra/deploy.sh)."
+        )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

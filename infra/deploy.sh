@@ -58,6 +58,15 @@ gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
   --member="serviceAccount:${RUN_SA}" --role="roles/firebaseauth.admin" --quiet >/dev/null
 
 echo "==> 4/5 Deploying to Cloud Run (build from source)"
+# One flag, custom ^@^ delimiter: gcloud treats repeated --set-env-vars as
+# a replacement, not a merge — split flags would silently drop live mode.
+ENV_VARS="OFFERLOOP_APP_MODE=live"
+ENV_VARS+="@OFFERLOOP_GCP_PROJECT=${PROJECT_ID}"
+ENV_VARS+="@OFFERLOOP_USE_VERTEX=true"
+ENV_VARS+="@OFFERLOOP_VERTEX_LOCATION=global"
+ENV_VARS+="@OFFERLOOP_SCHEDULER_SERVICE_ACCOUNT=${SCHED_SA}"
+ENV_VARS+="@OFFERLOOP_FIREBASE_WEB_CONFIG=${FIREBASE_WEB_CONFIG}"
+
 gcloud run deploy "${SERVICE}" \
   --source . \
   --region "${REGION}" \
@@ -67,15 +76,23 @@ gcloud run deploy "${SERVICE}" \
   --cpu 1 \
   --min-instances 0 \
   --max-instances 3 \
-  --set-env-vars "OFFERLOOP_APP_MODE=live" \
-  --set-env-vars "OFFERLOOP_GCP_PROJECT=${PROJECT_ID}" \
-  --set-env-vars "OFFERLOOP_USE_VERTEX=true" \
-  --set-env-vars "OFFERLOOP_VERTEX_LOCATION=global" \
-  --set-env-vars "OFFERLOOP_SCHEDULER_SERVICE_ACCOUNT=${SCHED_SA}" \
-  --set-env-vars "^@^OFFERLOOP_FIREBASE_WEB_CONFIG=${FIREBASE_WEB_CONFIG}"
+  --set-env-vars "^@^${ENV_VARS}"
 
 URL="$(gcloud run services describe "${SERVICE}" --region "${REGION}" --format='value(status.url)')"
 echo "    Service live at: ${URL}"
+
+# The OIDC gate verifies token audience == the service URL, which only
+# exists after the first deploy — set it now (update merges, not replaces).
+gcloud run services update "${SERVICE}" --region "${REGION}" \
+  --update-env-vars "OFFERLOOP_PUBLIC_URL=${URL}" >/dev/null
+
+# Sanity check: refuse to finish if the service somehow isn't in live mode.
+MODE="$(curl -sf "${URL}/api/health" | python3 -c 'import json,sys; print(json.load(sys.stdin)["mode"])' || echo unknown)"
+if [ "${MODE}" != "live" ]; then
+  echo "ERROR: service reports mode='${MODE}' (expected 'live') — check env vars." >&2
+  exit 1
+fi
+echo "    Health check: mode=live ✓"
 
 echo "==> 5/5 Cloud Scheduler — hourly nudge scan"
 gcloud run services add-iam-policy-binding "${SERVICE}" \

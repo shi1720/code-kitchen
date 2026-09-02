@@ -49,7 +49,7 @@ export default function AnalyticsPage() {
         <StatTile
           label="Ghost rate"
           value={`${data.ghost_rate}%`}
-          sub={`${data.ghosted} application${data.ghosted === 1 ? "" : "s"} gone quiet 21+ days`}
+          sub={`${data.ghosted} of ${data.by_status.applied} still-applied, quiet 21+ days`}
           tone={data.ghost_rate > 30 ? "bad" : undefined}
         />
       </div>

@@ -336,11 +336,16 @@ class TemplateIntelligence:
 
         if ctx.kind == "cover_letter":
             years = f"{ctx.profile_years:g}" if ctx.profile_years else "few"
+            focus = "exactly this stack" if mine == skills else mine
+            proof = (
+                f"A concrete example: {ctx.profile_achievements[0].lower()}{ctx.profile_achievements[1:]}"
+                if ctx.profile_achievements
+                else "I have shipped systems that people rely on every day"
+            )
             body = (
                 f"Dear Hiring Manager,\n\n"
                 f"The {ctx.role} opening caught my attention because it sits exactly where I do my "
-                f"best work: {skills}. Over the last {years} years I've focused on "
-                f"{mine}, and {ctx.profile_achievements or 'I have shipped systems that people rely on every day'}.\n\n"
+                f"best work: {skills}. Over the last {years} years I've focused on {focus}. {proof}.\n\n"
                 f"What draws me to {company} is the chance to own problems end to end rather than a "
                 f"slice of them. I move quickly, communicate clearly, and hold a high bar for the "
                 f"details that make software feel dependable.\n\n"
