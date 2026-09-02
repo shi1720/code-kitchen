@@ -353,9 +353,10 @@ class TemplateIntelligence:
             1: f"I applied for the {ctx.role} position {ctx.days_since_applied} days ago and wanted to check in.",
             2: f"Following up once more on my {ctx.role} application from {ctx.days_since_applied} days ago.",
         }.get(ctx.touch, f"A final note regarding my {ctx.role} application.")
+        overlap = f", especially {skills}" if ctx.skills and skills != mine else ""
         body = (
             f"Hi,\n\n{opener} I remain genuinely interested — my background in {mine} lines up "
-            f"closely with what the role needs{f' ({skills})' if ctx.skills else ''}.\n\n"
+            f"closely with what the role needs{overlap}.\n\n"
             f"If it's useful, I'm happy to share work samples or make time for a quick call this "
             f"week. Is there anything else you need from my side?\n\nBest,\n{name}"
         )

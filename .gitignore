@@ -13,3 +13,7 @@ frontend/dist/
 .env
 *.local
 .DS_Store
+
+# sandbox-only proxy CA (never committed)
+.sandbox-ca.crt
+Dockerfile.sandbox

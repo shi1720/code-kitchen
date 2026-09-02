@@ -120,12 +120,21 @@ class TestDrafts:
         assert len(report.rejected) == 1
         assert "unknown draft type" in report.rejected[0].reason
 
-    def test_linked_import_touches_application_activity(self, repo, intelligence):
+    def test_import_never_resets_staleness_clock(self, repo, intelligence):
+        # Historical drafts are history, not fresh outreach — importing them
+        # must not silence the follow-up cadence.
         ingest_postings(repo, intelligence, "u1", POSTINGS)
         before = repo.get_application_by_external_id("u1", "1").last_activity_at
         ingest_drafts(repo, intelligence, "u1", DRAFTS)
         after = repo.get_application_by_external_id("u1", "1").last_activity_at
-        assert after > before
+        assert after == before
+
+    def test_imported_drafts_dated_near_their_application(self, repo, intelligence):
+        ingest_postings(repo, intelligence, "u1", POSTINGS)
+        ingest_drafts(repo, intelligence, "u1", DRAFTS)
+        parent = repo.get_application_by_external_id("u1", "1")
+        draft = repo.get_draft_by_external_id("u1", "1")
+        assert draft.created_at == parent.applied_at
 
 
 class TestRunImport:

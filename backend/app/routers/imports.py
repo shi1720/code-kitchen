@@ -50,3 +50,22 @@ async def import_csvs(
 @router.get("/history")
 def import_history(user: User = Depends(get_current_user), repo: Repo = Depends(get_repo)):
     return repo.list_import_reports(user.uid)
+
+
+@router.get("/samples/{name}")
+def sample_dataset(name: str, _: User = Depends(get_current_user)):
+    """Serve the bundled sample CSVs so the UI's "try with sample data"
+    button runs the real import pipeline against known-good files."""
+    from pathlib import Path
+
+    from fastapi.responses import PlainTextResponse
+
+    from ..config import get_settings
+    from ..seed import _data_dir
+
+    if name not in {"postings", "drafts"}:
+        raise HTTPException(status_code=404, detail="Unknown sample")
+    path = Path(_data_dir(get_settings())) / f"sample_{name}.csv"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Sample dataset not bundled")
+    return PlainTextResponse(path.read_text(encoding="utf-8"), media_type="text/csv")

@@ -278,6 +278,11 @@ def ingest_drafts(
             to_write.append(existing)
             report.updated += 1
         else:
+            # The drafts schema carries no dates, so place historical drafts
+            # near their application's date rather than "now" — this keeps
+            # activity analytics honest and, crucially, never resets the
+            # staleness clock that drives the follow-up cadence.
+            written_at = parent.applied_at if parent else utcnow()
             to_write.append(
                 Draft(
                     uid=uid,
@@ -287,13 +292,11 @@ def ingest_drafts(
                     contents=contents,
                     status=dstatus,
                     source="imported",
+                    created_at=written_at,
+                    updated_at=written_at,
                 )
             )
             report.accepted += 1
-
-        if parent:
-            parent.touch()
-            repo.put_application(parent)
 
     # Batch-embed everything that has no vector yet so retrieval can use
     # semantic similarity in live mode. Lexical scoring covers the rest.

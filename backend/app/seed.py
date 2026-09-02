@@ -115,6 +115,18 @@ def seed_demo(repo: Repo, intelligence: Intelligence, settings: Settings) -> Non
             app.last_activity_at = moved_at
         repo.put_application(app)
 
+    # Re-time imported drafts to sit near their (re-timed) applications so
+    # the weekly analytics read like a real few weeks of job hunting.
+    apps_by_id = {app.id: app for app in repo.list_applications(DEMO_UID)}
+    for draft in repo.list_drafts(DEMO_UID):
+        parent = apps_by_id.get(draft.application_id)
+        if draft.source != "imported" or parent is None:
+            continue
+        offset = timedelta(hours=2) if draft.type.value == "cover_letter" else timedelta(days=4)
+        draft.created_at = min(parent.applied_at + offset, now - timedelta(hours=1))
+        draft.updated_at = draft.created_at
+        repo.put_draft(draft)
+
     # One scan so the nudge inbox is populated the moment the demo opens.
     scan = scan_user(repo, intelligence, settings, DEMO_UID)
     log.info("seed scan: %d nudges, %d drafts", scan.nudges_created, scan.drafts_generated)
