@@ -58,14 +58,16 @@ gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
   --member="serviceAccount:${RUN_SA}" --role="roles/firebaseauth.admin" --quiet >/dev/null
 
 echo "==> 4/5 Deploying to Cloud Run (build from source)"
-# One flag, custom ^@^ delimiter: gcloud treats repeated --set-env-vars as
-# a replacement, not a merge — split flags would silently drop live mode.
+# One flag with a custom '##' delimiter: gcloud treats repeated
+# --set-env-vars as a replacement (split flags silently drop vars), and
+# the delimiter must never occur inside a value — '@' is out (service
+# account emails), ',' is out (model lists, JSON config).
 ENV_VARS="OFFERLOOP_APP_MODE=live"
-ENV_VARS+="@OFFERLOOP_GCP_PROJECT=${PROJECT_ID}"
-ENV_VARS+="@OFFERLOOP_USE_VERTEX=true"
-ENV_VARS+="@OFFERLOOP_VERTEX_LOCATION=global"
-ENV_VARS+="@OFFERLOOP_SCHEDULER_SERVICE_ACCOUNT=${SCHED_SA}"
-ENV_VARS+="@OFFERLOOP_FIREBASE_WEB_CONFIG=${FIREBASE_WEB_CONFIG}"
+ENV_VARS+="##OFFERLOOP_GCP_PROJECT=${PROJECT_ID}"
+ENV_VARS+="##OFFERLOOP_USE_VERTEX=true"
+ENV_VARS+="##OFFERLOOP_VERTEX_LOCATION=global"
+ENV_VARS+="##OFFERLOOP_SCHEDULER_SERVICE_ACCOUNT=${SCHED_SA}"
+ENV_VARS+="##OFFERLOOP_FIREBASE_WEB_CONFIG=${FIREBASE_WEB_CONFIG}"
 
 gcloud run deploy "${SERVICE}" \
   --source . \
@@ -76,7 +78,7 @@ gcloud run deploy "${SERVICE}" \
   --cpu 1 \
   --min-instances 0 \
   --max-instances 3 \
-  --set-env-vars "^@^${ENV_VARS}"
+  --set-env-vars "^##^${ENV_VARS}"
 
 URL="$(gcloud run services describe "${SERVICE}" --region "${REGION}" --format='value(status.url)')"
 echo "    Service live at: ${URL}"
