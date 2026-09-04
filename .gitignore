@@ -18,3 +18,4 @@ frontend/dist/
 .sandbox-ca.crt
 Dockerfile.sandbox
 e2e/node_modules/
+*.egg-info/

@@ -172,7 +172,7 @@ backend/
       generation.py    grounded draft generation with provenance
       analytics.py     funnel math
     routers/           applications · drafts · imports · nudges · analytics · tasks
-  tests/               60 tests
+  tests/               70 tests
 frontend/
   src/                 React 19 + TypeScript + Tailwind 4 (validated dataviz palette)
 e2e/                   Playwright tour: click-tests every page, regenerates screenshots
